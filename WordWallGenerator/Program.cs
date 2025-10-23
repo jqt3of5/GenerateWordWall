@@ -4,18 +4,20 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using Svg;
 
 namespace WordWallGenerator
 {
     public class Node
     {
+        public string Id { get; set; }
         public string Value { get; set; }
         public HashSet<Node> Edges { get; } = new();
         public HashSet<Node> BackEdges { get; } = new();
 
         public override int GetHashCode()
         {
-            return Value.ToLower().GetHashCode();
+            return Id.ToLower().GetHashCode();
         }
 
         public override bool Equals(object obj)
@@ -49,22 +51,58 @@ namespace WordWallGenerator
                 .ToDigraph()
                 .Flatten();
 
+            
+            //Prompt for:
+            // 1. space between letters
+            float letterSize_cm = 2f;
+            //14 pixels per meter
+            float xletterSpace_cm = 1f/84*100;
+            float yletterSpace_cm = 2f;
+            // 2. max width
+            float maxWidth_cm = 60;
+            // 3.  
+
+            var doc = new SvgDocument();
             var builder = new StringBuilder();
-            int lineLength = 0;
+            
+            float x = 0;
+            float y = 1;
             foreach (var node in nodes)
             {
-                lineLength += node.Length;
-                if (lineLength > 34)
+                if (x + node.Length*xletterSpace_cm > maxWidth_cm)
                 {
                     builder.Append("\n");
-                    lineLength = node.Length;
+                    x = 0;
+                    y += yletterSpace_cm;
                 }
+                
+                foreach (var c in node)
+                {
+                    var character = new SvgText(c.ToString());
+                    character.X = new SvgUnitCollection();
+                    character.X.Add(new SvgUnit(SvgUnitType.Centimeter, x));
+                    character.Y = new SvgUnitCollection();
+                    character.Y.Add(new SvgUnit(SvgUnitType.Centimeter, y));
+                    
+                    doc.Children.Add(character);
+
+                    x += xletterSpace_cm;
+                } 
+                
                 builder.Append(node);
             }
 
+            doc.Height = new SvgUnit(SvgUnitType.Centimeter, y);
+            doc.Width = new SvgUnit(SvgUnitType.Centimeter, maxWidth_cm);
+            doc.FontFamily = "courier";
+            doc.FontSize = new SvgUnit(SvgUnitType.Centimeter, letterSize_cm); 
+            
+            doc.Write("test.svg");
+            
             var str = builder.ToString();
             Console.WriteLine(str);
             Console.WriteLine("count: " + str.Length);
+            Console.WriteLine("height: " + y);
         }
 
         public static HashSet<Node> ToDigraph(this IEnumerable<string[]> matrix)
@@ -72,11 +110,12 @@ namespace WordWallGenerator
             //For quick access to each node 
             var nodes = new Dictionary<string, Node>();
 
-            Node AddNewNode(string token)
+            Node AddNewNode(string token, string value)
             {
                 var node = new Node()
                 {
-                    Value = token 
+                    Id = token.ToLower(),
+                    Value = value
                 };
                         
                 nodes.Add(token.ToLower(), node);
@@ -122,7 +161,7 @@ namespace WordWallGenerator
                 //Haven't seen this word yet, initialize the edge list
                 if (!TryGetNode(token, out node))
                 {
-                    node = AddNewNode(token);
+                    node = AddNewNode(token, token);
                         
                     //each of the first words in a sentence might be a root word....
                     roots.Add(node);
@@ -136,7 +175,7 @@ namespace WordWallGenerator
                     //Haven't seen this word yet, initialize the edge list
                     if (!TryGetNode(next, out var node2))
                     {
-                        node2 = AddNewNode(next);
+                        node2 = AddNewNode(next, next);
                     }
 
                     //We want to be careful about cycles.... if adding this node will create a cycle, we're going to create a new node instead
@@ -147,7 +186,7 @@ namespace WordWallGenerator
                         if (!TryGetNode(next + index, out node2))
                         {
                             //If not, create it
-                            node2 = AddNewNode(next + index);
+                            node2 = AddNewNode(next + index, next);
                         }
 
                         index += 1;
