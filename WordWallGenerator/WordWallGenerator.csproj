@@ -16,10 +16,14 @@
       <None Update="sentances.txt">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
+      <None Update="AmericanStencil.otf">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="Svg" Version="3.4.7" />
+      <PackageReference Include="System.CommandLine" Version="2.0.0-rc.2.25502.107" />
     </ItemGroup>
 
 </Project>
