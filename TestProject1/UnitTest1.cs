@@ -18,8 +18,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "I love Kira", "I love you" }
                 .Select(line => line.Split(" "))
-                .ToDigraph();
-            
+                .ToDigraph(true);
             Assert.That(nodes, Is.Not.Empty);
             Assert.That(nodes.Select(n => n.Value), Contains.Item("I") );
             
@@ -30,7 +29,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "I love Kira", "I hate you" }
                 .Select(line => line.Split(" "))
-                .ToDigraph();
+                .ToDigraph(true);
             
             Assert.That(nodes, Is.Not.Empty);
             Assert.That(nodes.Select(n => n.Value), Contains.Item("I") );
@@ -42,7 +41,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "I love Kira", "we hate you" }
                 .Select(line => line.Split(" "))
-                .ToDigraph();
+                .ToDigraph(true);
             
             Assert.That(nodes, Is.Not.Empty);
             Assert.That(nodes.Select(n => n.Value), Contains.Item("I") );
@@ -55,7 +54,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "I love Kira", "we hate you",  "I love you"  }
                 .Select(line => line.Split(" "))
-                .ToDigraph();
+                .ToDigraph(true);
             
             Assert.That(nodes, Is.Not.Empty);
             Assert.That(nodes.Select(n => n.Value), Contains.Item("I") );
@@ -68,7 +67,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "I love Kira", "love conquers all", "conquers her land" }
                 .Select(line => line.Split(" "))
-                .ToDigraph();
+                .ToDigraph(true);
             
             Assert.That(nodes, Is.Not.Empty);
             Assert.That(nodes.Select(n => n.Value), Contains.Item("I") );
@@ -80,7 +79,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "love conquers all", "I love Kira", "conquers her land" }
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Flatten();
             
             Assert.That(nodes, Is.Not.Empty);
@@ -92,7 +91,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "JT loves Kira", "Kira loves JT" }
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Select(n => n.Value);
             
             Assert.That(nodes, Is.Not.Empty);
@@ -104,7 +103,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "JT loves Kira", "Kira loves JT" }
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Flatten();
             
             Assert.That(nodes, Is.Not.Empty);
@@ -116,7 +115,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "Kira loves JT",  "JT loves Kira", }
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Flatten();
             
             Assert.That(nodes, Is.Not.Empty);
@@ -128,7 +127,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "JT loves his Kira", "his Kira really wants to like JT" }
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Flatten();
             
             Assert.That(nodes, Is.Not.Empty);
@@ -140,7 +139,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "I love Kira", "we hate you",  "I love you"  }
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Flatten();
             
             Assert.That(nodes, Is.Not.Empty);
@@ -159,8 +158,8 @@ namespace TestProject1
             var digraph = Program.ReadLines("sentances.txt")
                 //tokenize
                 .Select(line => line.Split(" "))
-                .ToDigraph();
-            var str = digraph.Flatten();
+                .ToDigraph(true);
+            var str = digraph.Flatten().Select(n => n.Value);
 
             var tokens = Program.ReadLines("sentances.txt")
                 //tokenize
@@ -191,7 +190,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "JT loves his awesome Kira", "what loves a really super awesome dude" }
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Flatten();
             
             Assert.That(nodes.ToArray(), Is.Not.Empty);
@@ -202,7 +201,7 @@ namespace TestProject1
         {
             var nodes = new List<string>() { "A B C D", "X Y C A", "H I C", "Z U I", "P O H"}
                 .Select(line => line.Split(" "))
-                .ToDigraph()
+                .ToDigraph(true)
                 .Flatten();
             
             Assert.That(nodes.ToArray(), Is.Not.Empty);
