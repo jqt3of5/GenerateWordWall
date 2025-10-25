@@ -260,7 +260,8 @@ namespace WordWallGenerator
             }
 
             var line = new List<Node>();
-            var random = new Random(123);
+            //We want it to be random, but consistent across runs. 
+            var random = new Random(42);
             foreach(var node in nodes)
             {
                 var total = line.Sum(n => n.Value.Length);
@@ -278,7 +279,7 @@ namespace WordWallGenerator
                             var w = words.Where(w => w.Length <= diff).ToList();
                             if (!w.Any())
                             {
-                                Console.Error.WriteLine($"no words smaller than {diff} available to fill, skipping line fill");
+                                Console.Error.WriteLine($"no words smaller than {diff} available to fill, skipping remaining line fill");
                                 break;
                             }
                             var index = random.Next(w.Count); 
@@ -308,7 +309,7 @@ namespace WordWallGenerator
                         var w = words.Where(w => w.Length <= diff).ToList();
                         if (!w.Any())
                         {
-                            Console.Error.WriteLine($"no words smaller than {diff} available to fill, skipping line fill");
+                            Console.Error.WriteLine($"no words smaller than {diff} available to fill, skipping remaining line fill");
                             break;
                         }
                         var index = random.Next(w.Count); 
