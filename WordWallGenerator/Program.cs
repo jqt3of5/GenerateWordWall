@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.CommandLine;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -40,72 +42,118 @@ namespace WordWallGenerator
     {
         static void Main(string[] args)
         {
+            Option<FileInfo> sentences = new("--sentences")
+            {
+                Description = "Sentences containing a list of words. These will be guaranteed representable in the word wall"
+            };
+            Option<FileInfo> svgOutOption = new("--svg")
+            {
+                Description = "The outputted SVG file."
+            };
+            Option<float> xSpaceOption= new("--xSpace")
+            {
+                Description = "The x center-to-center distance between each letter in centimeters"
+            };
+            Option<float> ySpaceOption= new("--ySpace")
+            {
+                Description = "The y center-to-center distance between each line in centimeters"
+            };
+            Option<float> letterSizeOption = new("--letterSize")
+            {
+                Description = "The font size in centimeters"
+            };
+            Option<float> maxWidthOption = new("--maxWidth")
+            {
+                Description = "The maximum width of the word wall in centimeters"
+            };
+            Option<bool> toUpperOption = new("--toUpper")
+            {
+                Description = "Uppercase all the letters in the output. Input become case insensitive. Default: False",
+                DefaultValueFactory = res => false
+            };
+            Option<bool> caseInsensitiveOption = new("--caseSensitive")
+            {
+                Description = "Treats the input as case sensitive. Default: False",
+                DefaultValueFactory = res => true 
+            };
+            Option<string> fontFamilyOption = new("--fontFamily")
+            {
+                Description = "The name of an installed font on the system. Monospaced fonts works best"
+            };
+            Option<bool> addFillOption = new("--addFill")
+            {
+                Description = "Should Filler words be added to the end of each line if it is shorter than the max width. Default: true",
+                DefaultValueFactory = res => true
+            };
+            Option<FileInfo?> fillerWordsFileOption = new("--fillerWords")
+            {
+                Description = "A file that contains a newline separated list of filler words. Each will beused at random.",
+                DefaultValueFactory = res => null
+            };
+
+            
+            RootCommand rootCommand = new("Generate an SVG file from a list of sentences");
+            rootCommand.Options.Add(sentences);
+            rootCommand.Options.Add(svgOutOption);
+            rootCommand.Options.Add(xSpaceOption);
+            rootCommand.Options.Add(ySpaceOption);
+            rootCommand.Options.Add(letterSizeOption);
+            rootCommand.Options.Add(maxWidthOption);
+            rootCommand.Options.Add(toUpperOption);
+            rootCommand.Options.Add(caseInsensitiveOption);
+            rootCommand.Options.Add(fontFamilyOption); 
+            rootCommand.Options.Add(addFillOption);
+            rootCommand.Options.Add(fillerWordsFileOption);
+
+            var result = rootCommand.Parse(args);
+            if (result.Errors.Count != 0)
+            {
+                foreach (var error in result.Errors)
+                {
+                    Console.WriteLine(error);
+                }
+            }
+
+            var sentenceFile = result.GetRequiredValue<FileInfo>(sentences);
+            var svgFile = result.GetRequiredValue(svgOutOption);
+            var xSpace= result.GetRequiredValue(xSpaceOption);
+            var ySpace= result.GetRequiredValue(ySpaceOption);
+            var letterSize= result.GetRequiredValue(letterSizeOption);
+            var maxWidth = result.GetRequiredValue(maxWidthOption);
+            var toUpper = result.GetValue(toUpperOption);
+            var caseSensitive = result.GetValue(caseInsensitiveOption);
+            var fontFamily = result.GetValue(fontFamilyOption);
+            var addFill = result.GetValue(addFillOption);
+            var fillerWordsFile = result.GetValue(fillerWordsFileOption);
+
+            try
+            {
+                var font = new FontFamily(fontFamily);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Could not load your chosen font {fontFamily}. Only installed fonts are supported, did you install it?");
+            }
+                
             //Construct a multi-root acyclic digraph with unique nodes. 
             //This structure is then traversed in a breadth-first fashion to ensure every sentence is representable 
             
             //TODO: prefix words.... don't need cook and cooks as separate words
             
-            var nodes = ReadLines("sentances.txt")
+            var lines = ReadLines(sentenceFile.FullName)
                 //tokenize
                 .Select(line => line.Split(" "))
-                .ToDigraph()
-                .Flatten();
+                .ToDigraph(caseSensitive || toUpper)
+                .Flatten()
+                .LineBreak((int)(maxWidth/xSpace), addFill, fillerWordsFile != null ? fillerWordsFile.FullName : string.Empty)
+                .Select(line => line.Select(node => toUpper ? node.Value.ToUpper() : node.Value).ToArray())
+                .ToList();
 
-            
-            //Prompt for:
-            // 1. space between letters
-            float letterSize_cm = 2f;
-            //14 pixels per meter
-            float xletterSpace_cm = 1f/84*100;
-            float yletterSpace_cm = 2f;
-            // 2. max width
-            float maxWidth_cm = 60;
-            // 3.  
-
-            var doc = new SvgDocument();
-            var builder = new StringBuilder();
-            
-            float x = 0;
-            float y = 1;
-            foreach (var node in nodes)
-            {
-                if (x + node.Length*xletterSpace_cm > maxWidth_cm)
-                {
-                    builder.Append("\n");
-                    x = 0;
-                    y += yletterSpace_cm;
-                }
-                
-                foreach (var c in node)
-                {
-                    var character = new SvgText(c.ToString());
-                    character.X = new SvgUnitCollection();
-                    character.X.Add(new SvgUnit(SvgUnitType.Centimeter, x));
-                    character.Y = new SvgUnitCollection();
-                    character.Y.Add(new SvgUnit(SvgUnitType.Centimeter, y));
-                    
-                    doc.Children.Add(character);
-
-                    x += xletterSpace_cm;
-                } 
-                
-                builder.Append(node);
-            }
-
-            doc.Height = new SvgUnit(SvgUnitType.Centimeter, y);
-            doc.Width = new SvgUnit(SvgUnitType.Centimeter, maxWidth_cm);
-            doc.FontFamily = "courier";
-            doc.FontSize = new SvgUnit(SvgUnitType.Centimeter, letterSize_cm); 
-            
-            doc.Write("test.svg");
-            
-            var str = builder.ToString();
-            Console.WriteLine(str);
-            Console.WriteLine("count: " + str.Length);
-            Console.WriteLine("height: " + y);
+            SaveToSvg(svgFile.FullName, fontFamily, xSpace, ySpace, letterSize, lines);
+            WriteToConsole(lines);
         }
 
-        public static HashSet<Node> ToDigraph(this IEnumerable<string[]> matrix)
+        public static HashSet<Node> ToDigraph(this IEnumerable<string[]> matrix, bool caseSensitive)
         {
             //For quick access to each node 
             var nodes = new Dictionary<string, Node>();
@@ -114,18 +162,18 @@ namespace WordWallGenerator
             {
                 var node = new Node()
                 {
-                    Id = token.ToLower(),
+                    Id = caseSensitive ? token : token.ToLower(),
                     Value = value
                 };
                         
-                nodes.Add(token.ToLower(), node);
+                nodes.Add(caseSensitive ? token : token.ToLower(), node);
 
                 return node;
             }
 
             bool TryGetNode(string token, out Node? node)
             {
-                return nodes.TryGetValue(token.ToLower(), out node);
+                return nodes.TryGetValue(caseSensitive ? token : token.ToLower(), out node);
             }
 
             bool IsNodeInPath(Node child, Node node)
@@ -149,7 +197,6 @@ namespace WordWallGenerator
 
                 return false;
             }
-            
             
             //Make sure we identify the root nodes
             var roots = new HashSet<Node>();
@@ -202,46 +249,167 @@ namespace WordWallGenerator
 
             return roots;
         }
-        public static IEnumerable<string> Flatten(this IEnumerable<Node> roots)
+
+        public static IEnumerable<Node[]> LineBreak(this IEnumerable<Node> nodes, int lineWidth, bool addFill, string fillerWordsFileName)
         {
-            //Breadth  first ordered traversal of a multi-root acyclic digraph
-            var queue = new Queue<Node>();
+            var words = new[] { "a", "to", "and", "help", "tight", "output", "someone" };
 
-            var visitCount = new Dictionary<Node, int>();
-            
-            //Enqueue the roots first
-            foreach (var root in roots)
+            if (addFill && !string.IsNullOrEmpty(fillerWordsFileName))
             {
-                queue.Enqueue(root);
-                //Enqueuing a root here DOES NOT count as a visit. Sometimes roots have backedges, and those should not be processed immediately
-                visitCount[root] = -1;
+                words = File.ReadAllLines(fillerWordsFileName);
             }
-            
-            while (queue.Count > 0)
+
+            var line = new List<Node>();
+            var random = new Random(123);
+            foreach(var node in nodes)
             {
-                var word = queue.Dequeue();
+                var total = line.Sum(n => n.Value.Length);
 
-                //nodes might have multiple parents, and we don't want to output them until all the parentpaths have been traversed
-                //so keep count 
-                if (!visitCount.TryGetValue(word, out int count))
+                //If this node would make the line too long
+                if (total + node.Value.Length > lineWidth)
                 {
-                    visitCount[word] = 0;
+                    if (addFill)
+                    {
+                        //Loop adding filler words until we're full
+                        var diff = lineWidth - total;
+                    
+                        while (diff > 0)
+                        {
+                            var w = words.Where(w => w.Length <= diff).ToList();
+                            if (!w.Any())
+                            {
+                                Console.Error.WriteLine($"no words smaller than {diff} available to fill, skipping line fill");
+                                break;
+                            }
+                            var index = random.Next(w.Count); 
+                            diff -= w[index].Length;
+                            line.Add(new Node(){Value = w[index]});
+                        }
+                    }
+
+                    yield return line.ToArray();
+                    line.Clear();
                 }
+               
+                line.Add(node);
+            }
+
+            //fill out last line
+            if (line.Any())
+            {
+                var total = line.Sum(n => n.Value.Length);
+                if (addFill)
+                {
+                    //Loop adding filler words until we're full
+                    var diff = lineWidth - total;
+                    
+                    while (diff > 0)
+                    {
+                        var w = words.Where(w => w.Length <= diff).ToList();
+                        if (!w.Any())
+                        {
+                            Console.Error.WriteLine($"no words smaller than {diff} available to fill, skipping line fill");
+                            break;
+                        }
+                        var index = random.Next(w.Count); 
+                        diff -= w[index].Length;
+                        line.Add(new Node(){Value = w[index]});
+                    }
+                }
+
+                yield return line.ToArray();
+            }
+        }
+
+        public static void WriteToConsole(IEnumerable<string[]> lines)
+        {
+            var builder = new StringBuilder();
+            foreach (var line in lines)
+            {
+                foreach (var word in line)
+                {
+                    builder.Append(word);
+                }
+                builder.AppendLine();
+            }
+
+            Console.WriteLine(builder.ToString());
+        }
+        public static void SaveToSvg(string filename, string fontFamily, float x_space_cm, float y_space_cm, float fontSize_cm, IEnumerable<string[]> lines)
+        {
+            var doc = new SvgDocument();
+            
+            float maxWidth_cm = 0;
+            float x = 0;
+            float y = 1;
+            foreach (var line in lines)
+            {
+                foreach (var word in line)
+                {
+                    foreach (var c in word)
+                    {
+                        var character = new SvgText(c.ToString());
+                        character.X = new SvgUnitCollection();
+                        character.X.Add(new SvgUnit(SvgUnitType.Centimeter, x));
+                        character.Y = new SvgUnitCollection();
+                        character.Y.Add(new SvgUnit(SvgUnitType.Centimeter, y));
+
+                        doc.Children.Add(character);
+
+                        x += x_space_cm;
+                    }
+                }
+                maxWidth_cm = Math.Max(maxWidth_cm, x);
+                x = 0;
+                y += y_space_cm;
+            }
+
+            doc.Height = new SvgUnit(SvgUnitType.Centimeter, y);
+            doc.Width = new SvgUnit(SvgUnitType.Centimeter, maxWidth_cm);
+            doc.FontFamily = fontFamily; 
+            doc.FontWeight = SvgFontWeight.Bold;
+            doc.FontSize = new SvgUnit(SvgUnitType.Centimeter, fontSize_cm); 
+            
+            doc.Write(filename);
+        }
+                        
+        /// Breadth first ordered traversal of a multi-root acyclic digraph. Outputs elements line by line with a best fit to line width
+        /// using a knapsack solution 
+        /// </summary>
+        /// <param name="roots"></param>
+        /// <returns></returns>
+        public static IEnumerable<Node> Flatten(this IEnumerable<Node> roots)
+        {
+            var visitCount = new Dictionary<Node, int>();
+            void FillVisitCountDictionary(IEnumerable<Node> nodes)
+            {
+                foreach (var node in nodes)
+                {
+                    visitCount[node] = node.BackEdges.Count;
+                    FillVisitCountDictionary(node.Edges);
+                }
+            }
+           
+            FillVisitCountDictionary(roots);
+            
+            while (visitCount.Any())
+            {
+                //grab the nodes that have zero dependencies
+                var zeros = visitCount.Where(kvp => kvp.Value == 0).Select(kvp => kvp.Key);
                 
-                visitCount[word] = count + 1;
-                if (visitCount[word] < word.BackEdges.Count)
+                //biggest to smallest
+                // zeros.Sort((a, b) => a.Key.Value.Length.CompareTo(b.Key.Value.Length));
+                foreach (var node in zeros)
                 {
-                    continue;
-                }
+                    visitCount.Remove(node);
+                    foreach (var edge in node.Edges)
+                    {
+                        visitCount[edge]--;
+                    }
 
-                yield return word.Value;
-
-                //Naively no sorting
-                foreach (var next in word.Edges)
-                {
-                    queue.Enqueue(next);
+                    yield return node;
                 }
-            } 
+            }
         }
         public static IEnumerable<string> ReadLines(string filename)
         {
