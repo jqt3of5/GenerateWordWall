@@ -42,9 +42,9 @@ namespace WordWallGenerator
     {
         static void Main(string[] args)
         {
-            Option<FileInfo> sentences = new("--sentences")
+            Option<FileInfo[]> sentenceOptions = new("--sentences")
             {
-                Description = "Sentences containing a list of words. These will be guaranteed representable in the word wall"
+                Description = "Sentences containing a list of words. These will be guaranteed representable in the word wall",
             };
             Option<FileInfo> svgOutOption = new("--svg")
             {
@@ -93,7 +93,7 @@ namespace WordWallGenerator
 
             
             RootCommand rootCommand = new("Generate an SVG file from a list of sentences");
-            rootCommand.Options.Add(sentences);
+            rootCommand.Options.Add(sentenceOptions);
             rootCommand.Options.Add(svgOutOption);
             rootCommand.Options.Add(xSpaceOption);
             rootCommand.Options.Add(ySpaceOption);
@@ -114,14 +114,14 @@ namespace WordWallGenerator
                 }
             }
 
-            var sentenceFile = result.GetRequiredValue<FileInfo>(sentences);
+            var sentenceFiles = result.GetRequiredValue<FileInfo[]>(sentenceOptions);
             var svgFile = result.GetRequiredValue(svgOutOption);
             var xSpace= result.GetRequiredValue(xSpaceOption);
             var ySpace= result.GetRequiredValue(ySpaceOption);
             var letterSize= result.GetRequiredValue(letterSizeOption);
             var maxWidth = result.GetRequiredValue(maxWidthOption);
             var toUpper = result.GetValue(toUpperOption);
-            var caseSensitive = result.GetValue(caseInsensitiveOption);
+            var caseInsensitive = result.GetValue(caseInsensitiveOption);
             var fontFamily = result.GetValue(fontFamilyOption);
             var addFill = result.GetValue(addFillOption);
             var fillerWordsFile = result.GetValue(fillerWordsFileOption);
@@ -139,18 +139,33 @@ namespace WordWallGenerator
             //This structure is then traversed in a breadth-first fashion to ensure every sentence is representable 
             
             //TODO: prefix words.... don't need cook and cooks as separate words
-            
-            var lines = ReadLines(sentenceFile.FullName)
+            IEnumerable<string> sentences = new List<string>();
+            foreach (var file in sentenceFiles)
+            {
+                sentences = sentences.Concat(ReadLines(file.FullName));
+            }
+
+            var digraph = sentences
                 //tokenize
                 .Select(line => line.Split(" "))
-                .ToDigraph(caseSensitive || toUpper)
+                .ToDigraph(caseInsensitive || toUpper);
+            
+            //TODO: serialize digraph for use in a visual editor 
+            var lines = digraph
                 .Flatten()
                 .LineBreak((int)(maxWidth/xSpace), addFill, fillerWordsFile != null ? fillerWordsFile.FullName : string.Empty)
-                .Select(line => line.Select(node => toUpper ? node.Value.ToUpper() : node.Value).ToArray())
+                .Select(line => string.Join("", line.Select(node => toUpper ? node.Value.ToUpper() : node.Value)))
                 .ToList();
 
             SaveToSvg(svgFile.FullName, fontFamily, xSpace, ySpace, letterSize, lines);
             WriteToConsole(lines);
+            
+
+            Console.WriteLine("testing....");
+            foreach(var sentence in sentences)
+            {
+                TestSentence(lines.ToArray(), sentence, caseInsensitive);
+            }
         }
 
         public static HashSet<Node> ToDigraph(this IEnumerable<string[]> matrix, bool caseSensitive)
@@ -322,21 +337,18 @@ namespace WordWallGenerator
             }
         }
 
-        public static void WriteToConsole(IEnumerable<string[]> lines)
+        public static void WriteToConsole(IEnumerable<string> lines)
         {
             var builder = new StringBuilder();
             foreach (var line in lines)
             {
-                foreach (var word in line)
-                {
-                    builder.Append(word);
-                }
+                builder.Append(line);
                 builder.AppendLine();
             }
 
             Console.WriteLine(builder.ToString());
         }
-        public static void SaveToSvg(string filename, string fontFamily, float x_space_cm, float y_space_cm, float fontSize_cm, IEnumerable<string[]> lines)
+        public static void SaveToSvg(string filename, string fontFamily, float x_space_cm, float y_space_cm, float fontSize_cm, IEnumerable<string> lines)
         {
             var doc = new SvgDocument();
             
@@ -345,20 +357,17 @@ namespace WordWallGenerator
             float y = 1;
             foreach (var line in lines)
             {
-                foreach (var word in line)
+                foreach (var c in line)
                 {
-                    foreach (var c in word)
-                    {
-                        var character = new SvgText(c.ToString());
-                        character.X = new SvgUnitCollection();
-                        character.X.Add(new SvgUnit(SvgUnitType.Centimeter, x));
-                        character.Y = new SvgUnitCollection();
-                        character.Y.Add(new SvgUnit(SvgUnitType.Centimeter, y));
+                    var character = new SvgText(c.ToString());
+                    character.X = new SvgUnitCollection();
+                    character.X.Add(new SvgUnit(SvgUnitType.Centimeter, x));
+                    character.Y = new SvgUnitCollection();
+                    character.Y.Add(new SvgUnit(SvgUnitType.Centimeter, y));
 
-                        doc.Children.Add(character);
+                    doc.Children.Add(character);
 
-                        x += x_space_cm;
-                    }
+                    x += x_space_cm;
                 }
                 maxWidth_cm = Math.Max(maxWidth_cm, x);
                 x = 0;
@@ -427,5 +436,91 @@ namespace WordWallGenerator
             } 
         }
 
+        public static int [] TestSentence(string[] outputlines, string sentence, bool caseInsensitive)
+        {
+            var result = new List<int>();
+            int i = 0, column = 0, letterIndex = 0;
+            var tokens = sentence.Split(" ");
+            
+            for(int row = 0; row < outputlines.Length && i < tokens.Length; row++)
+            {
+                var line = outputlines[row];
+                var word = tokens[i];
+                
+                var index = FirstIndexOf(line, word, column, caseInsensitive);
+                if (index != -1)
+                {
+                    column = index + word.Length;
+                    //stay on this row
+                    row--;
+                    //advance the word
+                    i++;
+                    //return the led index for addresing
+                    for (int x = index; x < index + word.Length; ++x)
+                    {
+                        result.Add(x);
+                    }
+                }
+                else
+                {
+                    column = 0;
+                    //LEDs are seuential, keep track of the current led index to use in addressing
+                    letterIndex += line.Length;
+                }
+            }
+
+            if (i < tokens.Length)
+            {
+                //Not all words were processed
+                throw new Exception($"Not all words could be found for sentance \"{sentence}\" at word {tokens[i]}");
+            }
+            
+            return result.ToArray();
+        }
+
+        public static int FirstIndexOf(string input, string search, int startAt, bool caseInsensitive)
+        {
+            if (startAt >= input.Length)
+            {
+                return -1;
+            }
+
+            if (string.IsNullOrEmpty(input) || string.IsNullOrEmpty(search))
+            {
+                return -1;
+            }
+
+
+            if (caseInsensitive)
+            {
+                input = input.ToLower();
+                search = input.ToLower();
+            }
+
+            for (int i = startAt; i < input.Length; i++)
+            {
+                var matchFound = true;
+                for (int j = 0; j < search.Length; j++)
+                {
+                    if (j + i >= input.Length)
+                    {
+                        break;
+                    }
+                    
+                    if (input[i+j] != search[j])
+                    {
+                        matchFound = false;
+                        break;
+                    }
+                }
+
+                if (matchFound)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
     }
 }

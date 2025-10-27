@@ -42,58 +42,6 @@ do you want wine
 do you want beer
 do you want vodka
 
-it is one on the clock
-it is two on the clock
-it is three on the clock
-it is four on the clock
-it is five on the clock
-it is six on the clock
-it is seven on the clock
-it is eight on the clock
-it is nine on the clock
-it is ten on the clock
-it is eleven on the clock
-it is twelve on the clock
-
-it is quarter past one
-it is quarter past two
-it is quarter past three
-it is quarter past four
-it is quarter past five
-it is quarter past six
-it is quarter past seven
-it is quarter past eight
-it is quarter past nine
-it is quarter past ten
-it is quarter past eleven
-it is quarter past twelve
-
-it is half past one
-it is half past two
-it is half past three
-it is half past four
-it is half past five
-it is half past six
-it is half past seven
-it is half past eight
-it is half past nine
-it is half past ten
-it is half past eleven
-it is half past twelve
-
-it is quarter till one
-it is quarter till two
-it is quarter till three
-it is quarter till four
-it is quarter till five
-it is quarter till six
-it is quarter till seven
-it is quarter till eight
-it is quarter till nine
-it is quarter till ten
-it is quarter till eleven
-it is quarter till twelve
-
 he is as mad as a hornet
 they sleep in the afternoon
 I am taking a break from work
