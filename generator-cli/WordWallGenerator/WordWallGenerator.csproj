@@ -19,7 +19,7 @@
       <None Update="AmericanStencil.otf">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
-      <None Update="clock.txt">
+      <None Update="sentences.txt">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>

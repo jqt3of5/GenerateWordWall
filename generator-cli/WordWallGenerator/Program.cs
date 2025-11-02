@@ -17,20 +17,20 @@ namespace WordWallGenerator
         public HashSet<Node> Edges { get; } = new();
         public HashSet<Node> BackEdges { get; } = new();
 
-        public override int GetHashCode()
-        {
-            return Id.ToLower().GetHashCode();
-        }
+        // public override int GetHashCode()
+        // {
+        //     return Id.ToLower().GetHashCode();
+        // }
 
-        public override bool Equals(object obj)
-        {
-            if (obj is Node node)
-            {
-                return Value.ToLower().Equals(node.Value.ToLower());
-            }
-
-            return false;
-        }
+        // public override bool Equals(object obj)
+        // {
+        //     if (obj is Node node)
+        //     {
+        //         return Value.ToLower().Equals(node.Value.ToLower());
+        //     }
+        //
+        //     return false;
+        // }
 
         public override string ToString()
         {
@@ -149,6 +149,16 @@ namespace WordWallGenerator
                 //tokenize
                 .Select(line => line.Split(" "))
                 .ToDigraph(caseInsensitive || toUpper);
+            var clockDigraph = ClockDigraph();
+
+            var id = clockDigraph.Id;
+            var count = 1;
+            //naive (boring) Merge
+            while (digraph.Contains(clockDigraph))
+            {
+                clockDigraph.Id = $"{id}{count}";
+            }
+            digraph.Add(clockDigraph);
             
             //TODO: serialize digraph for use in a visual editor 
             var lines = digraph
@@ -160,12 +170,145 @@ namespace WordWallGenerator
             SaveToSvg(svgFile.FullName, fontFamily, xSpace, ySpace, letterSize, lines);
             WriteToConsole(lines);
             
+            var total = lines.Sum(line => line.Length);
+            Console.WriteLine($"Total letters: {total}");
 
             Console.WriteLine("testing....");
             foreach(var sentence in sentences)
             {
-                TestSentence(lines.ToArray(), sentence, caseInsensitive);
+                GetPositions(lines.ToArray(), sentence, caseInsensitive);
             }
+            Console.WriteLine("Success");
+        }
+
+        public static Node ClockDigraph()
+        {
+            Node[] hours = new[] { "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve" }
+                .Select(s => new Node() {Id = s, Value = s})
+                .ToArray();
+            Node [] decades = new[] { "twenty", "thirty", "forty", "fifty", "sixty"}
+                .Select(s => new Node() {Id = s, Value = s})
+                .ToArray();
+            Node [] teens = new [] {"ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen" }
+                .Select(s => new Node() {Id = s + "2", Value = s})
+                .ToArray();
+            Node [] digits = new[] { "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" }
+                .Select(s => new Node() {Id = s + "2", Value = s})
+                .ToArray();
+            
+            var it = new Node()
+            {
+                Id = "it",
+                Value = "it",
+            };
+
+            var @is = new Node()
+            {
+                Id = "is",
+                Value = "is",
+            };
+            
+            @is.BackEdges.Add(it);
+            it.Edges.Add(@is);
+            
+            var oh = new Node()
+            {
+                Id = "oh",
+                Value = "oh",
+            };
+            var quarter = new Node()
+            {
+                Id = "quarter",
+                Value = "quarter",
+            };
+            var half = new Node()
+            {
+                Id = "half",
+                Value = "half",
+            };
+            @is.Edges.Add(quarter);
+            quarter.BackEdges.Add(@is);
+            @is.Edges.Add(half);
+            half.BackEdges.Add(@is);
+            
+            var past = new Node()
+            {
+                Id = "past",
+                Value = "past",
+            };
+            var till = new Node()
+            {
+                Id = "till",
+                Value = "till",
+            };
+            
+            quarter.Edges.Add(past);
+            past.BackEdges.Add(quarter);
+            quarter.Edges.Add(till);
+            till.BackEdges.Add(quarter);
+            half.Edges.Add(past);
+            past.BackEdges.Add(half);
+            half.Edges.Add(till);
+            till.BackEdges.Add(half);
+            
+            for (int h = 1; h <= 12; ++h)
+            {
+                var hour = hours[h - 1]; 
+                
+                hour.BackEdges.Add(@is);
+                @is.Edges.Add(hour);
+                
+                hour.Edges.Add(oh);
+                oh.BackEdges.Add(hour);
+                
+                quarter.Edges.Add(hour);
+                hour.BackEdges.Add(quarter);
+                
+                half.Edges.Add(hour);
+                hour.BackEdges.Add(half);
+                
+                for (int m = 0; m <= 59; ++m)
+                {
+                    //"it is one" is a complete sentence
+                    if (m == 0)
+                    {
+                        continue;
+                    }
+                    //"it is one oh one"
+                    if (m > 0 && m < 10)
+                    {
+                        var digit = digits[m - 1];
+                        oh.Edges.Add(digit);
+                        digit.BackEdges.Add(oh);
+                        continue;
+                    }
+
+                    if (m >= 10 && m < 20)
+                    {
+                        var teen = teens[m - 10];
+                        hour.Edges.Add(teen);
+                        teen.BackEdges.Add(hour);
+                        continue;
+                    }
+
+                    if (m >= 20)
+                    {
+                        var decade =  decades[(m - 20)/10];
+                        hour.Edges.Add(decade);
+                        decade.BackEdges.Add(hour);
+                        if (m % 10 != 0)
+                        {
+                            var digit =  digits[(m - 20)%10-1];
+                            decade.Edges.Add(digit);
+                            digit.BackEdges.Add(decade); 
+                        }
+                       
+                        continue;
+                    }
+                }
+            }
+
+            return it;
         }
 
         public static HashSet<Node> ToDigraph(this IEnumerable<string[]> matrix, bool caseSensitive)
@@ -215,9 +358,18 @@ namespace WordWallGenerator
             
             //Make sure we identify the root nodes
             var roots = new HashSet<Node>();
-                
-            foreach (var line in matrix)
+
+            var m = matrix.ToList();
+            var total = m.Count;
+            var progress = 0f;
+            foreach (var line in m)
             {
+                if (progress % 10 == 0)
+                {
+                    Console.WriteLine($"progress: {progress/total}");
+                }
+                progress++;
+                
                 Node? node = null;
                 var token = line[0];
                 //Haven't seen this word yet, initialize the edge list
@@ -436,15 +588,15 @@ namespace WordWallGenerator
             } 
         }
 
-        public static int [] TestSentence(string[] outputlines, string sentence, bool caseInsensitive)
+        public static int [] GetPositions(string[] matrix, string sentence, bool caseInsensitive)
         {
             var result = new List<int>();
             int i = 0, column = 0, letterIndex = 0;
             var tokens = sentence.Split(" ");
             
-            for(int row = 0; row < outputlines.Length && i < tokens.Length; row++)
+            for(int row = 0; row < matrix.Length && i < tokens.Length; row++)
             {
-                var line = outputlines[row];
+                var line = matrix[row];
                 var word = tokens[i];
                 
                 var index = FirstIndexOf(line, word, column, caseInsensitive);
@@ -458,7 +610,7 @@ namespace WordWallGenerator
                     //return the led index for addresing
                     for (int x = index; x < index + word.Length; ++x)
                     {
-                        result.Add(x);
+                        result.Add(letterIndex+x);
                     }
                 }
                 else
@@ -472,7 +624,7 @@ namespace WordWallGenerator
             if (i < tokens.Length)
             {
                 //Not all words were processed
-                throw new Exception($"Not all words could be found for sentance \"{sentence}\" at word {tokens[i]}");
+                throw new Exception($"Not all words could be found for sentence \"{sentence}\" at word {tokens[i]}");
             }
             
             return result.ToArray();
