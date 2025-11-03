@@ -3,8 +3,8 @@ import WordWall from "@/app/WordWall";
 
 export default function Home() {
   return (
-      <main>
+      <div>
           <WordWall></WordWall>
-      </main>
+      </div>
   );
 }
