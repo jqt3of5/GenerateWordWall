@@ -5,11 +5,12 @@ import { Lightbulb, Settings, Wifi, WifiOff, ChevronLeft, ChevronRight } from 'l
 import {getPositions, getPositionsNonContiguous} from "@/app/busi/busi";
 
 export default function WordWall() {
-    const [gridContent, setGridContent] = useState('HAPPY\nBIRTHDAY\nTO YOU');
+    //Stored in local storage
+    const [gridContent, setGridContent] = useState("")
+    const [wled, setWled] = useState<{ip: string, connected: boolean, mdns: string}>({ip:"", connected: false, mdns:""});
+
     const [sentence, setSentence] = useState('');
     const [scale, setScale] = useState(0);
-    const [wledIP, setWledIP] = useState('');
-    const [wledConnected, setWledConnected] = useState(false);
     const [showSidePanel, setShowSidePanel] = useState(true);
     const [brightness, setBrightness] = useState(128);
     const [contiguousOnly, setContiguousOnly] = useState(false);
@@ -25,29 +26,22 @@ export default function WordWall() {
         { bg: 'bg-teal-400', text: 'text-gray-900', border: 'border-teal-300', shadow: 'shadow-teal-400/50', rgb: [100, 220, 200] },
     ];
 
-    const illuminateSentence = (sentence : string)=>
-    {
-        //Clear
-        for (let y = 0; y < matrix.length; y++) {
-            for (let x = 0; x < matrix[y].length; x++) {
-                matrix[y][x].illuminated = false;
-            }
-        }
-
-
-    }
-
     const sendToWLED = async () => {
         try {
             const ledData : number[] = [];
 
             matrix.forEach(row => {
                 row.forEach(char => {
-                    ledData.push(...colors[char.colorIndex].rgb);
+                    if (char.colorIndex == -1 || char.illuminated == false) {
+                        ledData.push(...[0,0,0])
+                    }
+                    else {
+                        ledData.push(...colors[char.colorIndex].rgb);
+                    }
                 });
             });
 
-            const response = await fetch(`http://${wledIP}/json/state`, {
+            const response = await fetch(`http://${wled.ip}/json/state`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -64,22 +58,22 @@ export default function WordWall() {
             }
         } catch (error) {
             console.error('Failed to send to WLED:', error);
-            setWledConnected(false);
+            setWled({...wled, connected: false});
         }
     };
 
     const testWLEDConnection = async () => {
         try {
-            const response = await fetch(`http://${wledIP}/json/info`);
+            const response = await fetch(`http://${wled.ip}/json/info`);
             if (response.ok) {
-                setWledConnected(true);
+                setWled({...wled, connected: true});
                 alert('Connected to WLED successfully!');
             } else {
-                setWledConnected(false);
+                setWled({...wled, connected: false});
                 alert('Failed to connect to WLED');
             }
         } catch (error) {
-            setWledConnected(false);
+            setWled({...wled, connected: false});
             alert('Failed to connect to WLED. Make sure the IP is correct and WLED is accessible.');
         }
     };
@@ -121,6 +115,29 @@ export default function WordWall() {
     }
 
     useEffect(() => {
+        const content = window.localStorage.getItem("gridContent")
+        if (content)
+        {
+            setGridContent(content)
+        }
+
+        const w = window.localStorage.getItem("wled")
+        if (w)
+        {
+            setWled(JSON.parse(w))
+        }
+    }, []);
+
+    useEffect(() => {
+        window.localStorage.setItem("gridContent", gridContent);
+    }, [gridContent]);
+
+    useEffect(() => {
+       window.localStorage.setItem("wled", JSON.stringify(wled));
+    }, [wled]);
+
+    useEffect(() => {
+
         const handleResize = () => {
 
             const maxCols = Math.max(...matrix.map(r => r.length));
@@ -159,7 +176,7 @@ export default function WordWall() {
                             <div key={rowIndex} className="flex gap-3">
                                 {row.map((letter, colIndex) => {
                                     if (letter.char === ' ') {
-                                        return <div key={colIndex} className="w-16 h-16" />;
+                                        return <div key={colIndex} className="w-12 h-20" />;
                                     }
 
                                     const color = letter.illuminated ? colors[letter.colorIndex] : null;
@@ -167,10 +184,10 @@ export default function WordWall() {
                                     return (
                                         <div
                                             key={colIndex}
-                                            className={`w-16 h-16 flex items-center justify-center font-bold text-5xl transition-all duration-300 ${
+                                            className={`w-12 h-20 flex items-center justify-center font-bold text-5xl transition-all duration-300 ${
                                                color !== null 
-                                                    ? `${color.text.replace('text-gray-900', `text-${color.bg.split('-')[1]}-400`)} drop-shadow-[0_0_12px_rgba(${color.rgb[0]},${color.rgb[1]},${color.rgb[2]},0.8)] scale-110`
-                                                    : 'text-gray-700'
+                                                    ? `text-${color.bg.split('-')[1]}-400 drop-shadow-[0_0_12px_rgba(${color.rgb[0]},${color.rgb[1]},${color.rgb[2]},0.8)] scale-110`
+                                                    : 'text-gray-500'
                                             }`}
                                             style={color !== null ? {
                                                 textShadow: `0 0 20px rgb(${color.rgb[0]}, ${color.rgb[1]}, ${color.rgb[2]}), 0 0 40px rgb(${color.rgb[0]}, ${color.rgb[1]}, ${color.rgb[2]})`
@@ -219,15 +236,20 @@ export default function WordWall() {
                             />
                             <div className="flex gap-2">
                                 <button
-                                    onClick={e => setSentence(sentence)}
+                                    onClick={e => {
+                                        setSentence(sentence)
+                                        if (wled.connected && wled.ip) {
+                                            sendToWLED();
+                                        }
+                                    }}
                                     className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold"
                                 >
-                                    Illuminate
+                                    Send
                                 </button>
                                 <button
                                     onClick={() => {
                                         setSentence("")
-                                        if (wledConnected && wledIP) {
+                                        if (wled.connected && wled.ip) {
                                             sendToWLED();
                                         }
                                     }}
@@ -278,7 +300,7 @@ export default function WordWall() {
 
                         <div className="border-t border-gray-700 pt-6">
                             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                {wledConnected ? <Wifi className="text-green-400" size={20} /> : <WifiOff className="text-gray-400" size={20} />}
+                                {wled.connected ? <Wifi className="text-green-400" size={20} /> : <WifiOff className="text-gray-400" size={20} />}
                                 WLED Integration
                             </h2>
 
@@ -289,8 +311,8 @@ export default function WordWall() {
                                     </label>
                                     <input
                                         type="text"
-                                        value={wledIP}
-                                        onChange={(e) => setWledIP(e.target.value)}
+                                        value={wled.ip}
+                                        onChange={(e) => setWled({...wled, ip: e.target.value})}
                                         placeholder="192.168.1.100"
                                         className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
                                     />

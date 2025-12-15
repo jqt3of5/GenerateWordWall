@@ -46,6 +46,11 @@ namespace WordWallGenerator
             {
                 Description = "Sentences containing a list of words. These will be guaranteed representable in the word wall",
             };
+            Option<bool> clockOptions = new("--clock")
+            {
+                Description = "Adds clock words to the matrix",
+                DefaultValueFactory = res => false
+            };
             Option<FileInfo> svgOutOption = new("--svg")
             {
                 Description = "The outputted SVG file."
@@ -94,6 +99,7 @@ namespace WordWallGenerator
             
             RootCommand rootCommand = new("Generate an SVG file from a list of sentences");
             rootCommand.Options.Add(sentenceOptions);
+            rootCommand.Options.Add(clockOptions);
             rootCommand.Options.Add(svgOutOption);
             rootCommand.Options.Add(xSpaceOption);
             rootCommand.Options.Add(ySpaceOption);
@@ -114,7 +120,8 @@ namespace WordWallGenerator
                 }
             }
 
-            var sentenceFiles = result.GetRequiredValue<FileInfo[]>(sentenceOptions);
+            var sentenceFiles = result.GetValue<FileInfo[]>(sentenceOptions);
+            var useClock = result.GetValue(clockOptions);
             var svgFile = result.GetRequiredValue(svgOutOption);
             var xSpace= result.GetRequiredValue(xSpaceOption);
             var ySpace= result.GetRequiredValue(ySpaceOption);
@@ -149,16 +156,21 @@ namespace WordWallGenerator
                 //tokenize
                 .Select(line => line.Split(" "))
                 .ToDigraph(caseInsensitive || toUpper);
-            var clockDigraph = ClockDigraph();
 
-            var id = clockDigraph.Id;
-            var count = 1;
-            //naive (boring) Merge
-            while (digraph.Contains(clockDigraph))
+            if (useClock)
             {
-                clockDigraph.Id = $"{id}{count}";
+                var clockDigraph = ClockDigraph();
+
+                var id = clockDigraph.Id;
+                var count = 1;
+            
+                //naive (boring) Merge
+                while (digraph.Contains(clockDigraph))
+                {
+                    clockDigraph.Id = $"{id}{count}";
+                }
+                digraph.Add(clockDigraph);     
             }
-            digraph.Add(clockDigraph);
             
             //TODO: serialize digraph for use in a visual editor 
             var lines = digraph
